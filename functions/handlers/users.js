@@ -1,9 +1,13 @@
-const { db } = require('../util/admin');
+const { db, admin } = require('../util/admin');
 const firebase = require('firebase');
 const config = require('../util/config');
 firebase.initializeApp(config);
 
-const { validateSignUpData, validateLoginData } = require('../util/validators');
+const {
+  validateSignUpData,
+  validateLoginData,
+  reduceUserDetails,
+} = require('../util/validators');
 
 exports.signUp = (req, res) => {
   const newUser = {
@@ -15,6 +19,8 @@ exports.signUp = (req, res) => {
   const { valid, errors } = validateSignUpData(newUser);
 
   if (!valid) return res.status(400).json(errors);
+
+  const noImg = 'blank-img.png';
 
   let token, userId;
   db.doc(`/users/${newUser.handle}`)
@@ -39,6 +45,7 @@ exports.signUp = (req, res) => {
         email: newUser.email,
         createdAt: new Date().toISOString(),
         userId,
+        imageUrl: `https://firebasestorage.google.apis.com/v0/b/${config.storageBucket}/o/${noImg}?alt=media`,
       };
       return db.doc(`/users/${newUser.handle}`).set(userCredentials);
     })
@@ -69,6 +76,7 @@ exports.login = (req, res) => {
     .auth()
     .signInWithEmailAndPassword(user.email, user.password)
     .then((data) => {
+      let tok = data.user.getIdToken();
       return data.user.getIdToken();
     })
     .then((token) => {
@@ -84,4 +92,102 @@ exports.login = (req, res) => {
         return res.status(500).json({ error: err.code });
       }
     });
+};
+
+// Add User Details
+
+exports.addUserDetails = (req, res) => {
+  let userDetails = reduceUserDetails(req.body);
+
+  db.doc(`/users/${req.user.handle}`)
+    .update(userDetails)
+    .then(() => {
+      return res.json({ message: 'Details added successfully' });
+    })
+    .catch((err) => {
+      console.error(err);
+      return res.status(500).json({ error: err.code });
+    });
+};
+
+//Get own User Details
+
+exports.getAuthenticatedUser = (req, res) => {
+  let UserData = {};
+
+  db.doc(`/users/${req.user.handle}`)
+    .get()
+    .then((doc) => {
+      if (doc.exists) {
+        UserData.credentials = doc.data();
+        return db
+          .collection('likes')
+          .where('userHandle', '==', req.user.handle)
+          .get();
+      }
+    })
+    .then((data) => {
+      UserData.likes = [];
+      data.forEach((doc) => {
+        UserData.likes.push(doc.data());
+      });
+      return res.json(UserData);
+    })
+    .catch((err) => {
+      console.error(err);
+      return res.status(500).json({ error: err.code });
+    });
+};
+
+//Upload Image profile
+exports.uploadImage = (req, res) => {
+  const BusBoy = require('busboy');
+  const path = require('path');
+  const os = require('os');
+  const fs = require('fs');
+
+  const busboy = new BusBoy({ headers: req.headers });
+  let imageFileName;
+  let imageToBeUploaded = {};
+
+  busboy.on('file', (fieldName, file, fileName, encoding, mimetype) => {
+    if (mimetype !== 'image/jpeg' && mimetype !== 'image/png') {
+      return res.status(400).json({ error: 'Wrong file type submitted' });
+    }
+    console.log(fileName);
+    console.log(fieldName);
+    console.log(mimetype);
+    const imageExtension = fileName.split('.')[fileName.split('.').length - 1];
+    imageFileName = `${Math.round(
+      Math.random() * 100000000000
+    )}.${imageExtension}`;
+    const filePath = path.join(os.tmpdir(), imageFileName);
+    imageToBeUploaded = { filePath, mimetype };
+    file.pipe(fs.createWriteStream(filePath));
+  });
+  busboy.on('finish', () => {
+    admin
+      .storage()
+      .bucket()
+      .upload(imageToBeUploaded.filePath, {
+        resumable: false,
+        metadata: {
+          metadata: {
+            contentType: imageToBeUploaded.mimetype,
+          },
+        },
+      })
+      .then(() => {
+        const imageUrl = `https://firebasestorage.googleapis.com/v0/b/${config.storageBucket}/o/${imageFileName}?alt=media`;
+        return db.doc(`/users/${req.user.handle}`).update({ imageUrl });
+      })
+      .then(() => {
+        return res.json({ message: 'Image uploaded successfully' });
+      })
+      .catch((err) => {
+        console.error(err);
+        return res.status(500).json({ error: err.code });
+      });
+  });
+  busboy.end(req.rawBody);
 };

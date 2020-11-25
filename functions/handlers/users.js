@@ -186,7 +186,7 @@ exports.getAuthenticatedUser = (req, res) => {
           recipient: doc.data().recipent,
           sender: doc.data().sender,
           read: doc.data().read,
-          screamId: doc.data().screamId,
+          postId: doc.data().postId,
           type: doc.data().type,
           createdAt: doc.data().createdAt,
         });

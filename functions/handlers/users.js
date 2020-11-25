@@ -1,8 +1,9 @@
 const { db, admin } = require('../util/admin');
 const firebase = require('firebase');
+require('firebase/storage');
 const config = require('../util/config');
 firebase.initializeApp(config);
-
+const storage = firebase.storage();
 const {
   validateSignUpData,
   validateLoginData,
@@ -45,7 +46,7 @@ exports.signUp = (req, res) => {
         email: newUser.email,
         createdAt: new Date().toISOString(),
         userId,
-        imageUrl: `https://firebasestorage.google.apis.com/v0/b/${config.storageBucket}/o/${noImg}?alt=media`,
+        imageUrl: `https://firebasestorage.googleapis.com/v0/b/${config.storageBucket}/o/${noImg}?alt=media&token=57daae51-1b43-45b9-9168-ff399c34171e`,
       };
       return db.doc(`/users/${newUser.handle}`).set(userCredentials);
     })
@@ -201,6 +202,8 @@ exports.getAuthenticatedUser = (req, res) => {
 
 //Upload Image profile
 exports.uploadImage = (req, res) => {
+  const { v4: uuidv4 } = require('uuid');
+  const uuid = uuidv4();
   const BusBoy = require('busboy');
   const path = require('path');
   const os = require('os');
@@ -225,6 +228,7 @@ exports.uploadImage = (req, res) => {
     imageToBeUploaded = { filePath, mimetype };
     file.pipe(fs.createWriteStream(filePath));
   });
+
   busboy.on('finish', () => {
     admin
       .storage()
@@ -233,7 +237,7 @@ exports.uploadImage = (req, res) => {
         resumable: false,
         metadata: {
           metadata: {
-            contentType: imageToBeUploaded.mimetype,
+            firebaseStorageDownloadTokens: uuid,
           },
         },
       })

@@ -13,8 +13,8 @@ exports.getAllPosts = (req, res) => {
           body: doc.data().body,
           userHandle: doc.data().userHandle,
           createdAt: doc.data().createdAt,
-          likeCount: 0,
-          commentCount: 0,
+          likeCount: doc.data().likeCount,
+          commentCount: doc.data().commentCount,
           userImage: doc.data().userImage,
         });
       });

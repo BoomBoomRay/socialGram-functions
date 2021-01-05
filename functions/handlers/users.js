@@ -46,7 +46,7 @@ exports.signUp = (req, res) => {
         email: newUser.email,
         createdAt: new Date().toISOString(),
         userId,
-        imageUrl: `https://firebasestorage.googleapis.com/v0/b/${config.storageBucket}/o/${noImg}?alt=media&token=57daae51-1b43-45b9-9168-ff399c34171e`,
+        imageUrl: `https://firebasestorage.googleapis.com/v0/b/${config.storageBucket}/o/${noImg}?alt=media&token=bf66350c-30eb-458b-812e-1e69fb61223b`,
       };
       return db.doc(`/users/${newUser.handle}`).set(userCredentials);
     })
@@ -79,7 +79,6 @@ exports.login = (req, res) => {
     .auth()
     .signInWithEmailAndPassword(user.email, user.password)
     .then((data) => {
-      let tok = data.user.getIdToken();
       return data.user.getIdToken();
     })
     .then((token) => {
@@ -89,7 +88,7 @@ exports.login = (req, res) => {
       console.error(err);
       //auth/wrong password
       // auth/user not found
-      if (err.code === 'auth/wrong-password') {
+      if (err.code === 'auth/wrong-password' || 'auth/user-not-found') {
         return res
           .status(403)
           .json({ general: 'Wrong credentials, please try again' });
@@ -184,12 +183,13 @@ exports.getAuthenticatedUser = (req, res) => {
       UserData.notifications = [];
       data.forEach((doc) => {
         UserData.notifications.push({
-          recipient: doc.data().recipent,
+          recipient: doc.data().recipient,
           sender: doc.data().sender,
           read: doc.data().read,
           postId: doc.data().postId,
           type: doc.data().type,
           createdAt: doc.data().createdAt,
+          notificationId: doc.id,
         });
       });
       return res.json(UserData);
